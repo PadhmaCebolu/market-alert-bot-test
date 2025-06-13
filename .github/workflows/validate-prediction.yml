@@ -40,6 +40,3 @@ jobs:
           git add market_predictions.csv
           git commit -m "✅ Update log on $(date -u)" || echo "No changes to commit"
           git push origin HEAD:main
-
-        env:
-          GH_PAT: ${{ secrets.GH_PAT }}
