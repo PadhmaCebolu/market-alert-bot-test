@@ -77,3 +77,4 @@ timestamp,spx,es,vix,sentiment_score,predicted_trend,predicted_move_pts,actual_t
 6/12/2025,6041.22,6037.5,17.96,6,?? Bullish,N/A,N/A,N/A,N/A
 6/13/2025,6045.26,5990,N/A,6,?? Bullish,N/A,Bearish,5977.57,0
 6/13/2025,6014.67,6022.25,19.27,-3,?? Bearish,N/A,Bearish,5977.57,1
+2025-06-13,5976.97,5981.5,20.84,-3,📉 Bearish,N/A
