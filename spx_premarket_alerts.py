@@ -186,15 +186,25 @@ def estimate_direction(spx, es, sentiment_score, vix):
 # 📅 Logging
 # =============================
 
-def log_premarket_prediction(date, spx, es, vix, sentiment_score, direction, move_pts):
+def log_premarket_prediction(date, spx, es, vix, sentiment_score, direction, news):
     log_file = "market_predictions.csv"
     file_exists = os.path.isfile(log_file)
+
+    news_str = " | ".join([h for _, _, h in news])  # Flatten to single string
 
     with open(log_file, mode='a', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
         if not file_exists:
-            writer.writerow(["date", "spx", "es", "vix", "sentiment_score", "predicted_trend", "predicted_move_pts"])
-        writer.writerow([date, spx, es, vix, sentiment_score, direction, move_pts])
+            writer.writerow([
+                "date", "spx", "es", "vix", "sentiment_score",
+                "predicted_trend", "actual_trend", "actual_spx_close", "Match/Miss", "news"
+            ])
+        writer.writerow([
+            date, spx, es, vix, sentiment_score,
+            direction, "n/a", "n/a", "n/a", news_str
+        ])
+
+
 
 # =============================
 # 📧 Email Notifier
@@ -286,7 +296,7 @@ def main():
     #move_pts, move_msg = get_expected_move_chameleon()
 
     # 5. Print console version of alert (optional)
-    print(f"\n📊 Pre-Market Alert for {today}")
+    print(f"\n📊 Pre-Market Alert for {today} Test Env")
     print(f"🔹 SPX: {spx}  🔺 VIX: {vix}  📉 ES: {es}")
     print("\n📰 Headlines:")
     for _, _, h in news:
@@ -297,7 +307,7 @@ def main():
     #print(f"\n📉 Expected Move: {move_msg}")
 
     # 6. Log results to CSV
-    log_premarket_prediction(today, spx, es, vix, sentiment_score, direction, move_pts="N/A")
+    log_premarket_prediction(today, spx, es, vix, sentiment_score, direction, news)
 
 
     # 7. Send styled email

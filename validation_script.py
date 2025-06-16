@@ -27,35 +27,46 @@ def get_spx_close():
 
 # ---------- Evaluate and Update Prediction Logs ----------
 def evaluate_predictions(log_file="market_predictions.csv"):
-    df = pd.read_csv(log_file)
-
-    # Ensure timestamp is datetime
-    df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+    try:
+        df = pd.read_csv(
+            log_file,
+            parse_dates=['date'],
+            quoting=1,
+            quotechar='"',
+            escapechar='\\',
+            encoding='utf-8',
+            on_bad_lines='warn'
+        )
+    except Exception as e:
+        print("❌ Error reading CSV file:", e)
+        return
 
     # Fill missing columns if absent
     for col in ['actual_spx_close', 'actual_trend', 'Match/Miss']:
         if col not in df.columns:
             df[col] = "N/A"
 
-    # Normalize missing fields
-    df.fillna("N/A", inplace=True)
-    df['actual_trend'] = df['actual_trend'].astype(str)
-    df['Match/Miss'] = df['Match/Miss'].astype(str)
+    # Get today's CST date
+    now_cst = datetime.datetime.now(pytz.timezone("US/Central")).date()
+    print(f"📅 Today CST: {now_cst}")
 
-    # Get today's date in CST
-    now_cst = datetime.datetime.now(pytz.timezone("US/Central"))
-    today_str = now_cst.strftime("%Y-%m-%d")
+    # Normalize 'date' column for comparison
+    df['date'] = pd.to_datetime(df['date'], errors='coerce').dt.date
 
-    # Identify rows to update
+    # Clean and standardize actual_trend column
+    df['actual_trend'] = df['actual_trend'].astype(str).str.strip().str.lower()
+
+    # Identify rows missing actuals
     mask = (
-        df['timestamp'].dt.strftime("%Y-%m-%d") == today_str
-    ) & (
-        df['actual_trend'].isin(["N/A", "nan", ""])  # match all "missing" styles
+        (df['date'] == now_cst) &
+        (df['actual_trend'].isin(["n/a", "nan", "", "na"]))
     )
 
     if mask.sum() == 0:
         print("✅ No missing actuals for today.")
         return
+
+    print(f"🟡 Found {mask.sum()} entries missing actuals. Proceeding to update...")
 
     # Fetch actual SPX close
     actual_close = get_spx_close()
@@ -68,15 +79,16 @@ def evaluate_predictions(log_file="market_predictions.csv"):
         predicted = df.loc[idx, 'predicted_trend']
         spx_open = df.loc[idx, 'spx']
 
-        if isinstance(spx_open, (int, float)) or (isinstance(spx_open, str) and spx_open.replace('.', '', 1).isdigit()):
+        try:
             spx_open = float(spx_open)
             actual_trend = "Bullish" if actual_close > spx_open else "Bearish"
-            match = "1" if actual_trend in predicted else "0"
-        else:
-            actual_trend, match = "N/A", "N/A"
+            match = "1" if actual_trend.lower() in predicted.lower() else "0"
+        except Exception as e:
+            print(f"⚠️ Error processing row {idx}: {e}")
+            actual_trend, match = "n/a", "n/a"
 
         df.at[idx, 'actual_spx_close'] = str(actual_close)
-        df.at[idx, 'actual_trend'] = str(actual_trend)
+        df.at[idx, 'actual_trend'] = actual_trend
         df.at[idx, 'Match/Miss'] = match
 
     df.to_csv(log_file, index=False)
