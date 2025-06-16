@@ -1,4 +1,4 @@
-timestamp,spx,es,vix,sentiment_score,predicted_trend,predicted_move_pts,actual_trend,actual_spx_close,Match/Miss
+date,spx,es,vix,sentiment_score,predicted_trend,actual_trend,actual_spx_close,Match/Miss,news
 4/16/2025,5275.74,5306,32.64,-6,?? Bearish,-108.48,N/A,N/A,N/A
 4/16/2025,5275.74,5308.75,32.64,-6,?? Bearish,-108.48,N/A,N/A,N/A
 4/16/2025,5275.74,5308.25,32.64,-6,?? Bearish,-108.48,N/A,N/A,N/A
