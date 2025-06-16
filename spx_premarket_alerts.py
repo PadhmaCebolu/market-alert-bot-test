@@ -201,7 +201,7 @@ def log_premarket_prediction(date, spx, es, vix, sentiment_score, direction, new
             ])
         writer.writerow([
             date, spx, es, vix, sentiment_score,
-            direction, "n/a", "n/a", "n/a", news_str
+            direction, "nan", "nan", "nan", news_str
         ])
 
 
@@ -312,7 +312,7 @@ def main():
 
     # 7. Send styled email
     send_email(
-        subject="📊 Pre-Market Alert",
+        subject="📊 Pre-Market Alert Test Env",
         spx=spx,
         vix=vix,
         es=es,
