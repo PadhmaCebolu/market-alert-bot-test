@@ -17,33 +17,83 @@ import pytz
 # Load environment variables
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
-finnhub_api_key = os.getenv("FINNHUB_API_KEY")
-marketaux_api_key = os.getenv("MARKETAUX_API_KEY")
+#finnhub_api_key = os.getenv("FINNHUB_API_KEY")
+#marketaux_api_key = os.getenv("MARKETAUX_API_KEY")
+openai_model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+
+
 
 # =============================
 # 📋 Utility Functions
 # =============================
 
-def classify_headlines_openai_bulk(headlines):
-    try:
-        response = openai.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "You're a financial sentiment classifier. For each headline, respond with just 📈, 📉, or 🔹. Give one per line in the same order."},
-                {"role": "user", "content": "\n".join(headlines)}
-            ],
-            max_tokens=50
-        )
-        result_text = response.choices[0].message.content.strip()
-        sentiments = result_text.splitlines()
-        return sentiments
-    except Exception as e:
-        print("❌ OpenAI classification failed:", e)
-        return ["🔹"] * len(headlines)
+import json
 
+def classify_headlines_openai_bulk(headlines, batch_size=10):
+    score_map = {"📈": 3, "📉": -3, "🔹": 0}
+    all_classified = []
+
+    for i in range(0, len(headlines), batch_size):
+        chunk = headlines[i:i+batch_size]
+        try:
+            prompt = [
+                {"role": "system", "content": (
+                    "You are a financial sentiment classifier.\n\n"
+                    "Classify each headline as:\n"
+                    "📈 (bullish), 📉 (bearish), or 🔹 (neutral), with confidence (0.0–1.0) and a brief reason.\n"
+                    "Respond ONLY with a JSON list like:\n"
+                    "[{\"sentiment\": \"📈\", \"confidence\": 0.8, \"reason\": \"Rate cuts expected\"}, ...]"
+                )},
+                {"role": "user", "content": "\n".join(chunk)}
+            ]
+
+            response = openai.chat.completions.create(
+                model=openai_model,
+                messages=prompt,
+                temperature=0.3,
+                max_tokens=700
+            )
+
+            result_text = response.choices[0].message.content.strip()
+            if result_text.startswith("```"):
+                result_text = result_text.strip("```json").strip("```").strip()
+
+            try:
+                parsed = json.loads(result_text)
+            except json.JSONDecodeError:
+                last_valid = result_text.rfind("}")
+                result_text = result_text[:last_valid+1] + "]"
+                parsed = json.loads(result_text)
+
+            for item in parsed:
+                emoji = item.get("sentiment", "🔹")
+                score = score_map.get(emoji, 0)
+                reason = item.get("reason", "")
+                conf = float(item.get("confidence", 0))
+                all_classified.append((emoji, score, reason, conf))
+
+        except Exception as e:
+            print("❌ GPT classification failed:", e)
+            all_classified.extend([("🔹", 0, "Error", 0)] * len(chunk))
+
+    return all_classified
+
+    
 def is_market_relevant(text):
-    keywords = ["fed", "tariff", "rate", "inflation", "yields", "bond", "treasury", "earnings", "revenue", "stocks", "markets", "recession", "jobless", "cpi", "ppi", "gdp", "volatility"]
-    return any(k in text.lower() for k in keywords)
+    keywords = [
+        "fed", "federal reserve", "interest rate", "tariff", "rate", "inflation", "disinflation",
+        "deflation", "yields", "bond", "treasury", "quantitative tightening", "quantitative easing",
+        "hawkish", "dovish", "fomc", "central bank", "earnings", "revenue", "guidance",
+        "stocks", "markets", "indices", "s&p", "nasdaq", "dow", "volatility", "vix",
+        "recession", "soft landing", "jobless", "unemployment", "nonfarm", "cpi", "ppi", "gdp",
+        "retail sales", "housing", "consumer sentiment", "ism", "pce", "commodities", "oil prices",
+        "energy prices", "geopolitical", "china", "opec", "rate hike", "rate cut", "ecb", "boe", "boj",
+        "debt ceiling", "fiscal policy", "economic outlook", "layoffs", "banking crisis", "credit rating",
+        "supply chain", "default", "liquidity", "volumes", "short selling", "options expiry", "earnings call"
+    ]
+    text_lower = text.lower()
+    return any(k in text_lower for k in keywords)
+
 # =============================
 # 📋 News Scrapers
 # =============================
@@ -64,7 +114,7 @@ def scrape_headlines(url, selector, base_url=""):
         print(f"⚠️ Error scraping {url}:", e)
     return headlines
 
-def get_all_market_news(finnhub_api_key, marketaux_api_key):
+def get_all_market_news():
     headlines_raw = []
 
     # 📰 1. Macenews, CNBC, Reuters (Web scraping)
@@ -73,34 +123,34 @@ def get_all_market_news(finnhub_api_key, marketaux_api_key):
     #headlines_raw += scrape_headlines("https://www.reuters.com/", "a[data-testid='Heading']", base_url="https://www.reuters.com")
 
     # 📰 2. Finnhub News
-    def fetch_finnhub_news():
-        url = f"https://finnhub.io/api/v1/news?category=general&token={finnhub_api_key}"
-        try:
-            response = requests.get(url).json()
-            for item in response[:10]:
-                title = item.get("headline", "")
-                url = item.get("url", "")
-                if title:
-                    headlines_raw.append(f"{title} - {url}")
-        except Exception as e:
-            print("❌ Finnhub news fetch failed:", e)
+    #def fetch_finnhub_news():
+    #    url = f"https://finnhub.io/api/v1/news?category=general&token={finnhub_api_key}"
+    #   try:
+    #        response = requests.get(url).json()
+    #        for item in response[:10]:
+    #           title = item.get("headline", "")
+    #            url = item.get("url", "")
+    #            if title:
+    #               headlines_raw.append(f"{title} - {url}")
+    #    except Exception as e:
+    #        print("❌ Finnhub news fetch failed:", e)
 
     # 📰 3. Marketaux News
-    def fetch_marketaux_news():
-        url = f"https://api.marketaux.com/v1/news/all?symbols=SPY&filter_entities=true&language=en&api_token={marketaux_api_key}"
-        try:
-            response = requests.get(url).json()
-            for article in response.get("data", [])[:10]:
-                title = article.get("title", "")
-                url = article.get("url", "")
-                if title:
-                    headlines_raw.append(f"{title} - {url}")
-        except Exception as e:
-            print("❌ Marketaux news fetch failed:", e)
+    #def fetch_marketaux_news():
+    #    url = f"https://api.marketaux.com/v1/news/all?symbols=SPY&filter_entities=true&language=en&api_token={marketaux_api_key}"
+    #   try:
+    #        response = requests.get(url).json()
+    #       for article in response.get("data", [])[:10]:
+    #           title = article.get("title", "")
+    #           url = article.get("url", "")
+    #            if title:
+    #                headlines_raw.append(f"{title} - {url}")
+    #   except Exception as e:
+    #       print("❌ Marketaux news fetch failed:", e)
 
     # Fetch from APIs
-    fetch_finnhub_news()
-    fetch_marketaux_news()
+    #fetch_finnhub_news()
+    #fetch_marketaux_news()
 
     # Filter and classify
     headlines_raw = [h for h in headlines_raw if is_market_relevant(h)]
@@ -109,7 +159,9 @@ def get_all_market_news(finnhub_api_key, marketaux_api_key):
     enhanced_news = []
     for original, sentiment in zip(headlines_raw, classified):
         score = {"📈": 3, "📉": -3, "🔹": 0}.get(sentiment, 0)
-        enhanced_news.append((sentiment, score, f"{sentiment} {original}"))
+        emoji, score, reason, confidence = sentiment
+        enhanced_news.append((emoji, score, f"{emoji} {original} — {reason}", confidence))
+
 
     return enhanced_news
 
@@ -148,39 +200,25 @@ def get_es():
 # 📋 Analysis & Bias
 # =============================
 
-def estimate_direction(spx, es, sentiment_score, vix):
-    score = 0
-    reasons = []
-    gap = es - spx if isinstance(spx, float) and isinstance(es, float) else 0
-
-    if gap > 10:
-        score += 1
-        reasons.append("ES futures lead SPX → bullish")
-    elif gap < -10:
-        score -= 1
-        reasons.append("ES futures lag SPX → bearish")
-
-    if sentiment_score >= 3:
-        score += 1
-        reasons.append("Positive news bias")
-    elif sentiment_score <= -3:
-        score -= 1
-        reasons.append("Negative news bias")
-
-    if isinstance(vix, float) and vix > 30:
-        score -= 1
-        reasons.append("High VIX (>30) → bearish weight")
-
-    # 📌 Enforce binary direction — resolve ties toward strongest sentiment
-    if score >= 0:
-        reasons.append("Neutral bias overridden → forced Bullish")
-        return "📈 Bullish", reasons
+def estimate_direction(spx, es, sentiment_score, vix, news):
+    # Only use sentiment_score for now
+    if sentiment_score > 0:
+        direction = "📈 Bullish"
+    elif sentiment_score < 0:
+        direction = "📉 Bearish"
     else:
-        reasons.append("Neutral bias overridden → forced Bearish")
-        return "📉 Bearish", reasons
+        direction = "🔹 Neutral"
 
+    avg_conf = sum(c for _, _, _, c in news) / len(news) if news else 0.5
+    direction_with_conf = f"{direction} (Confidence: {round(avg_conf, 2)})"
 
+    # Debug log
+    print("🧪 DEBUG NEWS-ONLY DIRECTION")
+    print(f"  - Total Sentiment Score: {sentiment_score}")
+    print(f"  - Avg News Confidence: {round(avg_conf, 2)}")
+    print(f"  - Direction: {direction_with_conf}")
 
+    return direction_with_conf, [f"News-driven sentiment score = {sentiment_score}"]
 
 # =============================
 # 📅 Logging
@@ -190,7 +228,9 @@ def log_premarket_prediction(date, spx, es, vix, sentiment_score, direction, new
     log_file = "market_predictions.csv"
     file_exists = os.path.isfile(log_file)
 
-    news_str = " | ".join([h for _, _, h in news])  # Flatten to single string
+    news_str = " | ".join([h for _, _, h, _ in news])
+
+
 
     with open(log_file, mode='a', newline='', encoding='utf-8') as file:
         writer = csv.writer(file)
@@ -221,21 +261,23 @@ def send_email(subject, spx, vix, es, news, direction, reasons, move_msg, to_ema
         message["From"] = os.getenv("EMAIL_USER")
         message["To"] = to_email
         message["Subject"] = subject
-
+        headline_lines = "\n".join([f"- {h}" for _, _, h, _ in news])
+        reason_lines = "\n".join([f"- {r}" for r in reasons])
         # Plaintext fallback
         body_text = f"""
-📊 Pre-Market Alert for {datetime.date.today()}
-🔹 SPX: {spx}  🔺 VIX: {vix}  📉 ES: {es}
+                
+                📊 Pre-Market Alert for {datetime.date.today()}
+                🔹 SPX: {spx}  🔺 VIX: {vix}  📉 ES: {es}
 
-📰 Headlines:
-{chr(10).join([f"- {h}" for _, _, h in news])}
+                📰 Headlines:
+                {headline_lines}
 
-📊 Market Bias: {direction}
-{chr(10).join([f"- {r}" for r in reasons])}
+                📊 Market Bias: {direction}
+                {reason_lines}
 
-📉 Expected Move: {move_msg}
-Generated by CDUS Trading Bot • {current_time_est}
-        """
+                📉 Expected Move: {move_msg}
+                Generated by CDUS Trading Bot • {current_time_est}
+                """
 
         # HTML version
         html = f"""
@@ -250,7 +292,7 @@ Generated by CDUS Trading Bot • {current_time_est}
 
             <h3>📰 Headlines:</h3>
             <ul>
-                {''.join(f"<li>{h}</li>" for _, _, h in news)}
+                {''.join(f"<li>{h}</li>" for _, _, h, _ in news)}
             </ul>
 
             <h3>📊 Market Bias: {direction}</h3>
@@ -279,18 +321,19 @@ Generated by CDUS Trading Bot • {current_time_est}
 
 def main():
     today = datetime.date.today()
-    
+    print(f"🧠 Using OpenAI model: {openai_model}")
     # 1. Get market data
     spx = get_spx()
     vix = get_vix()
     es = get_es()
 
     # 2. Scrape and classify headlines
-    news = get_all_market_news(finnhub_api_key, marketaux_api_key)
-    sentiment_score = sum(score for _, score, _ in news)
+    news = get_all_market_news()
+    sentiment_score = sum(score for _, score, _, _ in news)
+
 
     # 3. Market bias and direction
-    direction, reasons = estimate_direction(spx, es, sentiment_score, vix)
+    direction, reasons = estimate_direction(spx, es, sentiment_score, vix, news)
 
     # 4. Expected move from Market Chameleon
     #move_pts, move_msg = get_expected_move_chameleon()
@@ -299,7 +342,7 @@ def main():
     print(f"\n📊 Pre-Market Alert for {today} Test Env")
     print(f"🔹 SPX: {spx}  🔺 VIX: {vix}  📉 ES: {es}")
     print("\n📰 Headlines:")
-    for _, _, h in news:
+    for _, _, h, _ in news:
         print(f"- {h}")
     print(f"\n📊 Market Bias: {direction}")
     for r in reasons:
