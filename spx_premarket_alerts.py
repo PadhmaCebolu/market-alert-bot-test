@@ -5,6 +5,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 import datetime
+from datetime import datetime, timedelta
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -17,8 +18,8 @@ import pytz
 # Load environment variables
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
-#finnhub_api_key = os.getenv("FINNHUB_API_KEY")
-#marketaux_api_key = os.getenv("MARKETAUX_API_KEY")
+finnhub_api_key = os.getenv("FINNHUB_API_KEY")
+marketaux_api_key = os.getenv("MARKETAUX_API_KEY")
 openai_model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
 
 
@@ -123,34 +124,35 @@ def get_all_market_news():
     #headlines_raw += scrape_headlines("https://www.reuters.com/", "a[data-testid='Heading']", base_url="https://www.reuters.com")
 
     # 📰 2. Finnhub News
-    #def fetch_finnhub_news():
-    #    url = f"https://finnhub.io/api/v1/news?category=general&token={finnhub_api_key}"
-    #   try:
-    #        response = requests.get(url).json()
-    #        for item in response[:10]:
-    #           title = item.get("headline", "")
-    #            url = item.get("url", "")
-    #            if title:
-    #               headlines_raw.append(f"{title} - {url}")
-    #    except Exception as e:
-    #        print("❌ Finnhub news fetch failed:", e)
+    def fetch_finnhub_news():
+        url = f"https://finnhub.io/api/v1/news?category=general&token={finnhub_api_key}"
+       try:
+            response = requests.get(url).json()
+            for item in response[:10]:
+               title = item.get("headline", "")
+                url = item.get("url", "")
+                if title:
+                   headlines_raw.append(f"{title} - {url}")
+        except Exception as e:
+            print("❌ Finnhub news fetch failed:", e)
 
     # 📰 3. Marketaux News
-    #def fetch_marketaux_news():
-    #    url = f"https://api.marketaux.com/v1/news/all?symbols=SPY&filter_entities=true&language=en&api_token={marketaux_api_key}"
-    #   try:
-    #        response = requests.get(url).json()
-    #       for article in response.get("data", [])[:10]:
-    #           title = article.get("title", "")
-    #           url = article.get("url", "")
-    #            if title:
-    #                headlines_raw.append(f"{title} - {url}")
-    #   except Exception as e:
-    #       print("❌ Marketaux news fetch failed:", e)
+    def fetch_marketaux_news():
+        upublished_after = (datetime.utcnow() - timedelta(hours=3)).isoformat() + "Z"
+        url = f"https://api.marketaux.com/v1/news/all?symbols=SPY&published_after={published_after}&filter_entities=true&language=en&api_token={marketaux_api_key}"
+       try:
+            response = requests.get(url).json()
+           for article in response.get("data", [])[:10]:
+               title = article.get("title", "")
+               url = article.get("url", "")
+                if title:
+                    headlines_raw.append(f"{title} - {url}")
+       except Exception as e:
+           print("❌ Marketaux news fetch failed:", e)
 
     # Fetch from APIs
-    #fetch_finnhub_news()
-    #fetch_marketaux_news()
+    fetch_finnhub_news()
+    fetch_marketaux_news()
 
     # Filter and classify
     headlines_raw = [h for h in headlines_raw if is_market_relevant(h)]
