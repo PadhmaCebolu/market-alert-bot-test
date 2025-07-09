@@ -126,7 +126,7 @@ def get_all_market_news():
     # 📰 2. Finnhub News
     def fetch_finnhub_news():
         url = f"https://finnhub.io/api/v1/news?category=general&token={finnhub_api_key}"
-       try:
+        try:
             response = requests.get(url).json()
             for item in response[:10]:
                title = item.get("headline", "")
@@ -138,9 +138,9 @@ def get_all_market_news():
 
     # 📰 3. Marketaux News
     def fetch_marketaux_news():
-        upublished_after = (datetime.utcnow() - timedelta(hours=3)).isoformat() + "Z"
+        published_after = (datetime.utcnow() - timedelta(hours=3)).isoformat() + "Z"
         url = f"https://api.marketaux.com/v1/news/all?symbols=SPY&published_after={published_after}&filter_entities=true&language=en&api_token={marketaux_api_key}"
-       try:
+        try:
             response = requests.get(url).json()
            for article in response.get("data", [])[:10]:
                title = article.get("title", "")
@@ -160,7 +160,6 @@ def get_all_market_news():
 
     enhanced_news = []
     for original, sentiment in zip(headlines_raw, classified):
-        score = {"📈": 3, "📉": -3, "🔹": 0}.get(sentiment, 0)
         emoji, score, reason, confidence = sentiment
         enhanced_news.append((emoji, score, f"{emoji} {original} — {reason}", confidence))
 
