@@ -5,7 +5,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 import datetime
-from datetime import datetime, timedelta
+from datetime import timedelta
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -140,17 +140,18 @@ def get_all_market_news():
 
     # 📰 3. Marketaux News
     def fetch_marketaux_news():
-        published_after = (datetime.utcnow() - timedelta(hours=3)).isoformat() + "Z"
+        published_after = (datetime.datetime.utcnow() - timedelta(hours=3)).isoformat() + "Z"
         url = f"https://api.marketaux.com/v1/news/all?symbols=SPY&published_after={published_after}&filter_entities=true&language=en&api_token={marketaux_api_key}"
         try:
             response = requests.get(url).json()
-           for article in response.get("data", [])[:10]:
-               title = article.get("title", "")
-               url = article.get("url", "")
+            for article in response.get("data", [])[:10]:
+                title = article.get("title", "")
+                url = article.get("url", "")
                 if title:
                     headlines_raw.append(f"{title} - {url}")
-       except Exception as e:
-           print("❌ Marketaux news fetch failed:", e)
+        except Exception as e:
+            print("❌ Marketaux news fetch failed:", e)
+
 
     # Fetch from APIs
     fetch_finnhub_news()
