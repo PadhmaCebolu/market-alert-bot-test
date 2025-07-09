@@ -129,12 +129,14 @@ def get_all_market_news():
         try:
             response = requests.get(url).json()
             for item in response[:10]:
-               title = item.get("headline", "")
+                title = item.get("headline", "")
                 url = item.get("url", "")
                 if title:
-                   headlines_raw.append(f"{title} - {url}")
+                    headlines_raw.append(f"{title} - {url}")
         except Exception as e:
             print("❌ Finnhub news fetch failed:", e)
+
+        
 
     # 📰 3. Marketaux News
     def fetch_marketaux_news():
