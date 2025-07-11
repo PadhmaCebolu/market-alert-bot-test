@@ -20,7 +20,8 @@ load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 finnhub_api_key = os.getenv("FINNHUB_API_KEY")
 marketaux_api_key = os.getenv("MARKETAUX_API_KEY")
-openai_model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+openai_model = "gpt-3.5-turbo"
+
 
 
 
@@ -114,60 +115,122 @@ def scrape_headlines(url, selector, base_url=""):
     except Exception as e:
         print(f"⚠️ Error scraping {url}:", e)
     return headlines
+'''
+def fetch_finnhub_news():
+    headlines = []
+    url = f"https://finnhub.io/api/v1/news?category=general&token={finnhub_api_key}"
+    try:
+        response = requests.get(url).json()
+        for item in response[:10]:
+            title = item.get("headline", "")
+            url = item.get("url", "")
+            if title:
+                headlines.append(f"{title} - {url}")
+    except Exception as e:
+        print("❌ Finnhub news fetch failed:", e)
+    return headlines
 
+def fetch_marketaux_news():
+    headlines = []
+    published_after = (datetime.datetime.now(datetime.timezone.utc) - timedelta(hours=3)).isoformat()
+    url = f"https://api.marketaux.com/v1/news/all?symbols=SPY&published_after={published_after}&filter_entities=true&language=en&api_token={marketaux_api_key}"
+    try:
+        response = requests.get(url).json()
+        for article in response.get("data", [])[:10]:
+            title = article.get("title", "")
+            url = article.get("url", "")
+            if title:
+                headlines.append(f"{title} - {url}")
+    except Exception as e:
+        print("❌ Marketaux news fetch failed:", e)
+    return headlines
+'''
+def fetch_investing_news():
+    headlines = []
+    try:
+        url = "https://www.investing.com/news/stock-market-news"
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        res = requests.get(url, headers=headers)
+        soup = BeautifulSoup(res.text, 'html.parser')
+        for el in soup.select("div.textDiv a.title")[:10]:
+            title = el.get_text(strip=True)
+            link = "https://www.investing.com" + el.get("href", "")
+            if title:
+                headlines.append(f"{title} - {link}")
+    except Exception as e:
+        print("❌ Investing.com news fetch failed:", e)
+    return headlines
+
+def fetch_yahoo_finance_news():
+    headlines = []
+    try:
+        url = "https://finance.yahoo.com/"
+        headers = {'User-Agent': 'Mozilla/5.0'}
+        res = requests.get(url, headers=headers)
+        soup = BeautifulSoup(res.text, 'html.parser')
+
+        for el in soup.select('h3 a')[:10]:
+            title = el.get_text(strip=True)
+            link = el.get("href", "")
+            full_link = f"https://finance.yahoo.com{link}" if link.startswith("/") else link
+            if title and is_market_relevant(title):
+                headlines.append(f"{title} - {full_link}")
+    except Exception as e:
+        print("❌ Yahoo Finance news fetch failed:", e)
+    return headlines
+
+def fetch_bloomberg_headlines():
+    headlines = []
+    try:
+        url = "https://www.bloomberg.com/markets"
+        headers = {"User-Agent": "Mozilla/5.0"}
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, "html.parser")
+
+        for tag in soup.select("a.story-package-module__story__headline-link")[:10]:
+            title = tag.get_text(strip=True)
+            link = tag.get("href")
+            if link and not link.startswith("http"):
+                link = "https://www.bloomberg.com" + link
+            if title and is_market_relevant(title):
+                headlines.append(f"{title} - {link}")
+    except Exception as e:
+        print("❌ Bloomberg news fetch failed:", e)
+    return headlines
 def get_all_market_news():
     headlines_raw = []
 
-    # 📰 1. Macenews, CNBC, Reuters (Web scraping)
-    #headlines_raw += scrape_headlines("https://macenews.com/", ".elementor-heading-title")
+    # 📺 CNBC
     headlines_raw += scrape_headlines("https://www.cnbc.com/world/?region=world", "a.Card-title")
-    #headlines_raw += scrape_headlines("https://www.reuters.com/", "a[data-testid='Heading']", base_url="https://www.reuters.com")
 
-    # 📰 2. Finnhub News
-    def fetch_finnhub_news():
-        url = f"https://finnhub.io/api/v1/news?category=general&token={finnhub_api_key}"
-        try:
-            response = requests.get(url).json()
-            for item in response[:10]:
-                title = item.get("headline", "")
-                url = item.get("url", "")
-                if title:
-                    headlines_raw.append(f"{title} - {url}")
-        except Exception as e:
-            print("❌ Finnhub news fetch failed:", e)
+    # 🌍 Other Sources
+    #headlines_raw += fetch_finnhub_news()
+    #headlines_raw += fetch_marketaux_news()
+    headlines_raw += fetch_investing_news()
+    headlines_raw += fetch_yahoo_finance_news()
+    headlines_raw += fetch_bloomberg_headlines()
 
-        
-
-    # 📰 3. Marketaux News
-    def fetch_marketaux_news():
-        published_after = (datetime.datetime.utcnow() - timedelta(hours=3)).isoformat() + "Z"
-        url = f"https://api.marketaux.com/v1/news/all?symbols=SPY&published_after={published_after}&filter_entities=true&language=en&api_token={marketaux_api_key}"
-        try:
-            response = requests.get(url).json()
-            for article in response.get("data", [])[:10]:
-                title = article.get("title", "")
-                url = article.get("url", "")
-                if title:
-                    headlines_raw.append(f"{title} - {url}")
-        except Exception as e:
-            print("❌ Marketaux news fetch failed:", e)
+    
+   # Deduplicate and filter for relevance
+    headlines_raw = list(set([h for h in headlines_raw if is_market_relevant(h)]))
 
 
-    # Fetch from APIs
-    fetch_finnhub_news()
-    fetch_marketaux_news()
-
-    # Filter and classify
-    headlines_raw = [h for h in headlines_raw if is_market_relevant(h)]
+    # 🧠 Classify with OpenAI
     classified = classify_headlines_openai_bulk(headlines_raw)
 
+    # 🧩 Final structure
     enhanced_news = []
     for original, sentiment in zip(headlines_raw, classified):
         emoji, score, reason, confidence = sentiment
         enhanced_news.append((emoji, score, f"{emoji} {original} — {reason}", confidence))
 
+    print("Total headlines collected:", len(headlines_raw))
+    print("\nSample headlines:")
+    for h in headlines_raw[:3]:
+        print(h)
 
     return enhanced_news
+
 
 
 # =============================
@@ -326,6 +389,7 @@ def send_email(subject, spx, vix, es, news, direction, reasons, move_msg, to_ema
 def main():
     today = datetime.date.today()
     print(f"🧠 Using OpenAI model: {openai_model}")
+
     # 1. Get market data
     spx = get_spx()
     vix = get_vix()
@@ -333,14 +397,11 @@ def main():
 
     # 2. Scrape and classify headlines
     news = get_all_market_news()
-    sentiment_score = sum(score for _, score, _, _ in news)
 
+    sentiment_score = sum(score for _, score, _, _ in news)
 
     # 3. Market bias and direction
     direction, reasons = estimate_direction(spx, es, sentiment_score, vix, news)
-
-    # 4. Expected move from Market Chameleon
-    #move_pts, move_msg = get_expected_move_chameleon()
 
     # 5. Print console version of alert (optional)
     print(f"\n📊 Pre-Market Alert for {today} Test Env")
@@ -351,11 +412,9 @@ def main():
     print(f"\n📊 Market Bias: {direction}")
     for r in reasons:
         print(f"- {r}")
-    #print(f"\n📉 Expected Move: {move_msg}")
 
     # 6. Log results to CSV
     log_premarket_prediction(today, spx, es, vix, sentiment_score, direction, news)
-
 
     # 7. Send styled email
     send_email(
@@ -366,7 +425,7 @@ def main():
         news=news,
         direction=direction,
         reasons=reasons,
-        move_msg="N/A", 
+        move_msg="N/A",
         to_email=os.getenv("EMAIL_TO")
     )
 
