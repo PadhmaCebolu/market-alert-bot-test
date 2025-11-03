@@ -404,7 +404,7 @@ def main():
     direction, reasons = estimate_direction(spx, es, sentiment_score, vix, news)
 
     # 5. Print console version of alert (optional)
-    print(f"\n📊 Pre-Market Alert for {today} Test Env")
+    print(f"\n📊 Pre-Market Alert for {today} GPT 4")
     print(f"🔹 SPX: {spx}  🔺 VIX: {vix}  📉 ES: {es}")
     print("\n📰 Headlines:")
     for _, _, h, _ in news:
