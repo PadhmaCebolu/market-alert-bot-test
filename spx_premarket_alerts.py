@@ -317,7 +317,7 @@ def log_premarket_prediction(date, spx, es, vix, sentiment_score, direction, new
 # 📧 Email Notifier
 # =============================
 
-def send_email(subject, spx, vix, es, news, direction, reasons, move_msg, to_email):
+def send_email(subject, spx, vix, es, sentiment_score, news, direction, reasons, move_msg, to_email):
     try:
         import pytz
         # Get current time in US/Eastern
@@ -335,6 +335,7 @@ def send_email(subject, spx, vix, es, news, direction, reasons, move_msg, to_ema
                 
                 📊 Pre-Market Alert for {datetime.date.today()}
                 🔹 SPX: {spx}  🔺 VIX: {vix}  📉 ES: {es}
+                📊 Sentiment Score: {sentiment_score}
 
                 📰 Headlines:
                 {headline_lines}
@@ -355,6 +356,11 @@ def send_email(subject, spx, vix, es, news, direction, reasons, move_msg, to_ema
                 <strong>🔹 SPX:</strong> {spx} &nbsp;&nbsp;
                 <strong>🔺 VIX:</strong> {vix} &nbsp;&nbsp;
                 <strong>📉 ES:</strong> {es}
+            </p>
+
+            <p>
+                <strong>📊 Sentiment Score:</strong>
+                <span style="font-size: 1.2em; font-weight: bold;">{sentiment_score}</span>
             </p>
 
             <h3>📰 Headlines:</h3>
@@ -422,6 +428,7 @@ def main():
         spx=spx,
         vix=vix,
         es=es,
+        sentiment_score=sentiment_score,
         news=news,
         direction=direction,
         reasons=reasons,
